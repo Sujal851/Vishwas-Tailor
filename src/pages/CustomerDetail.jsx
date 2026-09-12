@@ -25,6 +25,37 @@ function formatVal(v) {
   return v || '—';
 }
 
+function BillPhotoViewer({ url }) {
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  if (failed) {
+    return (
+      <p className="text-sm text-red-500 italic">
+        Bill photo couldn't be loaded (file missing or inaccessible)
+      </p>
+    );
+  }
+
+  return (
+    <div className="relative w-full max-w-xs">
+      {!loaded && (
+        <div className="w-full h-40 bg-gray-100 rounded-lg animate-pulse flex items-center justify-center text-xs text-gray-400">
+          Loading photo...
+        </div>
+      )}
+      <img
+        src={url}
+        alt="Bill"
+        className={`w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition ${loaded ? 'block' : 'hidden'}`}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        onClick={() => window.open(url, '_blank')}
+      />
+    </div>
+  );
+}
+
 export default function CustomerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -97,11 +128,22 @@ export default function CustomerDetail() {
             <span className="text-gray-500">Advance</span>
             <span className="text-gray-900">{latestOrder ? '₹' + Number(latestOrder.advance || 0).toLocaleString('en-IN') : '—'}</span>
             <span className="text-gray-500">Balance</span>
-            <span className="text-gray-900 font-semibold text-red-600">
+            <span className={`font-semibold ${latestOrder && Math.max(0, Number(latestOrder.amount || 0) - Number(latestOrder.advance || 0)) > 0 ? 'text-red-600' : 'text-green-600'}`}>
               {latestOrder ? '₹' + Math.max(0, Number(latestOrder.amount || 0) - Number(latestOrder.advance || 0)).toLocaleString('en-IN') : '—'}
             </span>
             <span className="text-gray-500">Payment Mode</span>
             <span className="text-gray-900 capitalize">{latestOrder?.payment_mode || '—'}</span>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-gray-100">
+            <h3 className="text-xs text-gray-500 mb-2">Bill Photo</h3>
+            {!latestOrder ? (
+              <p className="text-sm text-gray-400 italic">No bill yet for this customer</p>
+            ) : latestOrder.bill_photo_url ? (
+              <BillPhotoViewer url={latestOrder.bill_photo_url} />
+            ) : (
+              <p className="text-sm text-gray-400 italic">No bill photo uploaded</p>
+            )}
           </div>
         </div>
 
@@ -128,7 +170,7 @@ export default function CustomerDetail() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
               {Object.entries(TROUSER_LABELS).map(([k, label]) => {
                 const v = latestTrouser.data?.[k];
-                if (v === '' || v === null || v === undefined) return null;
+                if (v === '' || v === null || v === undefined || v === false) return null;
                 return (
                   <div key={k}>
                     <span className="text-gray-400 text-xs">{label}</span>

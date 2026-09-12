@@ -46,10 +46,11 @@ export default function Analytics() {
   const pendingCount = orders.filter(o => o.status === 'pending').length;
   const deliveredCount = orders.filter(o => o.status === 'delivered').length;
 
-  const months = eachMonthOfInterval({
+  const isValidRange = fromDate && toDate && fromDate <= toDate;
+  const months = isValidRange ? eachMonthOfInterval({
     start: startOfMonth(new Date(fromDate)),
     end: startOfMonth(new Date(toDate)),
-  });
+  }) : [];
 
   const revenueByMonth = months.map(month => {
     const label = format(month, 'MMM yy');

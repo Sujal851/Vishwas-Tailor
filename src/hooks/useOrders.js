@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
-export function useOrders(customerId = null) {
+export function useOrders(customerId = null, { skip = false } = {}) {
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!skip);
 
   const fetchOrders = useCallback(async () => {
+    if (skip) return;
     setLoading(true);
     let query = supabase
       .from('orders')
@@ -19,7 +20,7 @@ export function useOrders(customerId = null) {
     if (error) toast.error('Failed to load orders');
     else setOrders(data || []);
     setLoading(false);
-  }, [customerId]);
+  }, [customerId, skip]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 

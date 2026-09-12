@@ -10,7 +10,7 @@ export default function Sidebar() {
   const links = [
   { path: '/dashboard', label: 'Dashboard', end: true },
   { path: '/customers/new', label: 'Add Customer', end: true },
-  { path: '/customers', label: 'Customer List', end: true },
+  { path: '/customers', label: 'Customer List', end: false, exclude: '/customers/new' },
   { path: '/analytics', label: 'Analytics', end: true },
 ];
 
@@ -41,13 +41,14 @@ export default function Sidebar() {
             to={link.path}
             end={link.end}
             onClick={() => setMobileOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center px-4 py-2.5 rounded-md transition text-sm ${
-                isActive
+            className={({ isActive }) => {
+              const active = isActive && !(link.exclude && window.location.pathname === link.exclude);
+              return `flex items-center px-4 py-2.5 rounded-md transition text-sm ${
+                active
                   ? 'bg-white text-primary font-semibold'
                   : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`
-            }
+              }`;
+            }}
           >
             {link.label}
           </NavLink>

@@ -118,7 +118,7 @@ const filtered = customersWithOrders.filter(c => {
               className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
             />
             <button
-              onClick={() => {}}
+              onClick={() => setSearch(search.trim())}
               className="shrink-0 px-4 py-2 bg-primary text-white rounded text-sm font-medium hover:bg-primary-dark"
             >
               Search

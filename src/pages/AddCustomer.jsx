@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useCustomers } from '../hooks/useCustomers';
 import { useOrders } from '../hooks/useOrders';
 import toast from 'react-hot-toast';
+import BillPhotoUpload from '../components/BillPhotoUpload';
 
 const emptyTrouser = {
   length: '', waist: '', hip: '', bottom: '', knee: '', thigh: '',
@@ -62,7 +63,7 @@ export default function AddCustomer() {
   const isEdit = !!id;
   const navigate = useNavigate();
   const { addCustomer, deleteCustomer } = useCustomers();
-  const { addOrder } = useOrders(isEdit ? id : null);
+  const { addOrder } = useOrders(null, { skip: true });
 
   const [form, setForm] = useState({
     serial_no: '', name: '', phone: '', date: '', delivery_date: '', notes: '',
@@ -78,6 +79,7 @@ export default function AddCustomer() {
   const [paymentStatus, setPaymentStatus] = useState('unpaid');
   const [orderId, setOrderId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [billPhotoUrl, setBillPhotoUrl] = useState('');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -142,6 +144,7 @@ export default function AddCustomer() {
       setAdvance(latestOrder.advance != null ? String(latestOrder.advance) : '');
       setPaymentMode(latestOrder.payment_mode || 'cash');
       setPaymentStatus(latestOrder.payment_status || 'unpaid');
+      setBillPhotoUrl(latestOrder.bill_photo_url || '');
       // ── FIX: use order_date for the "Order Date" field, not customer.created_at
       setForm(prev => ({
         ...prev,
@@ -234,6 +237,7 @@ export default function AddCustomer() {
             delivery_date: form.delivery_date || null,
             payment_mode: paymentMode,
             payment_status: paymentStatus,
+            bill_photo_url: billPhotoUrl || null,
           };
           // Only update order_date if the user has a value
           if (form.date) orderPayload.order_date = form.date;
@@ -243,7 +247,7 @@ export default function AddCustomer() {
             .update(orderPayload)
             .eq('id', orderId);
           if (oErr) throw oErr;
-        } else if (billNo || amount) {
+                } else if (billNo || amount) {
           // No existing order — create one
           const { error: oErr } = await supabase.from('orders').insert([{
             customer_id: id,
@@ -255,6 +259,7 @@ export default function AddCustomer() {
             status: 'pending',
             payment_status: paymentStatus,
             payment_mode: paymentMode,
+            bill_photo_url: billPhotoUrl || null,
           }]);
           if (oErr) throw oErr;
         }
@@ -291,6 +296,7 @@ export default function AddCustomer() {
             status: 'pending',
             payment_status: paymentStatus,
             payment_mode: paymentMode,
+            bill_photo_url: billPhotoUrl || null,
           });
         }
 
@@ -305,39 +311,36 @@ export default function AddCustomer() {
     }
   }
 
-async function handleDelete() {
-  if (!isEdit) return;
-  if (!confirm('Delete customer "' + form.name + '" and all their data?')) return;
+  async function handleDelete() {
+    if (!isEdit) return;
+    if (!confirm('Delete customer "' + form.name + '" and all their data?')) return;
 
-  try {
-    // 1. Delete ALL orders for this customer
-    const { error: ordErr } = await supabase
-      .from('orders')
-      .delete()
-      .eq('customer_id', id);
-    if (ordErr) throw ordErr;
+    try {
+      const { error: ordErr } = await supabase
+        .from('orders')
+        .delete()
+        .eq('customer_id', id);
+      if (ordErr) throw ordErr;
 
-    // 2. Delete ALL measurements for this customer
-    const { error: measErr } = await supabase
-      .from('measurements')
-      .delete()
-      .eq('customer_id', id);
-    if (measErr) throw measErr;
+      const { error: measErr } = await supabase
+        .from('measurements')
+        .delete()
+        .eq('customer_id', id);
+      if (measErr) throw measErr;
 
-    // 3. Delete the customer row itself
-    const { error: custErr } = await supabase
-      .from('customers')
-      .delete()
-      .eq('id', id);
-    if (custErr) throw custErr;
+      const { error: custErr } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', id);
+      if (custErr) throw custErr;
 
-    toast.success('Customer deleted');
-    navigate('/customers');
-  } catch (err) {
-    toast.error('Failed to delete: ' + (err?.message || 'unknown error'));
-    console.error('Delete error:', err);
+      toast.success('Customer deleted');
+      navigate('/customers');
+    } catch (err) {
+      toast.error('Failed to delete: ' + (err?.message || 'unknown error'));
+      console.error('Delete error:', err);
+    }
   }
-}
 
   const inputCls = "w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none";
   const labelCls = "text-xs text-gray-500 mb-1 block";
@@ -377,6 +380,7 @@ async function handleDelete() {
               <label className={labelCls}>Bill No</label>
               <input className={inputCls} value={billNo} onChange={e => setBillNo(e.target.value)} />
             </div>
+            <BillPhotoUpload value={billPhotoUrl} onChange={setBillPhotoUrl} orderId={orderId} />
             <div>
               <label className={labelCls}>Amount</label>
               <input type="number" className={inputCls} value={amount} onChange={e => setAmount(e.target.value)} />

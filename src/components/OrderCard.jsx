@@ -1,18 +1,14 @@
 // src/components/OrderCard.jsx
 import { format } from 'date-fns';
 import StatusBadge from './StatusBadge';
-import { useOrders } from '../hooks/useOrders';
 
-export default function OrderCard({ order }) {
-  const { updateOrder } = useOrders(order.customer_id);
-
+export default function OrderCard({ order, onUpdate }) {
   const amount  = Number(order.amount  || 0);
   const advance = Number(order.advance || 0);
   const balance = Math.max(0, amount - advance);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 hover:shadow-md transition">
-      {/* ── Top row: Bill No + Amount ── */}
       <div className="flex justify-between items-start mb-3">
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-wide">Bill No.</p>
@@ -24,7 +20,6 @@ export default function OrderCard({ order }) {
         </div>
       </div>
 
-      {/* ── Dates ── */}
       <div className="grid grid-cols-2 gap-3 text-sm mb-3 pb-3 border-b border-gray-100">
         <div>
           <p className="text-gray-500 text-xs">Order Date</p>
@@ -40,7 +35,6 @@ export default function OrderCard({ order }) {
         </div>
       </div>
 
-      {/* ── Advance / Balance row ── */}
       <div className="grid grid-cols-2 gap-3 text-sm mb-3 pb-3 border-b border-gray-100">
         <div>
           <p className="text-gray-500 text-xs">Advance Paid</p>
@@ -54,7 +48,6 @@ export default function OrderCard({ order }) {
         </div>
       </div>
 
-      {/* ── Status badges ── */}
       <div className="flex gap-2 mb-3 flex-wrap">
         <StatusBadge status={order.status} />
         <StatusBadge paymentStatus={order.payment_status} />
@@ -65,33 +58,34 @@ export default function OrderCard({ order }) {
         </span>
       </div>
 
-      {/* ── Action buttons ── */}
-      <div className="flex gap-2 flex-wrap">
-        {order.status === 'pending' && (
-          <button
-            onClick={() => updateOrder(order.id, { status: 'delivered' })}
-            className="text-xs px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium"
-          >
-            Mark Delivered
-          </button>
-        )}
-        {order.status === 'delivered' && (
-          <button
-            onClick={() => updateOrder(order.id, { status: 'pending' })}
-            className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-medium"
-          >
-            Mark Undelivered
-          </button>
-        )}
-        {order.payment_status === 'unpaid' && (
-          <button
-            onClick={() => updateOrder(order.id, { payment_status: 'paid', advance: order.amount })}
-            className="text-xs px-3 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-md font-medium"
-          >
-            Mark Paid
-          </button>
-        )}
-      </div>
+      {onUpdate && (
+        <div className="flex gap-2 flex-wrap">
+          {order.status === 'pending' && (
+            <button
+              onClick={() => onUpdate(order.id, { status: 'delivered' })}
+              className="text-xs px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium"
+            >
+              Mark Delivered
+            </button>
+          )}
+          {order.status === 'delivered' && (
+            <button
+              onClick={() => onUpdate(order.id, { status: 'pending' })}
+              className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-medium"
+            >
+              Mark Undelivered
+            </button>
+          )}
+          {order.payment_status === 'unpaid' && (
+            <button
+              onClick={() => onUpdate(order.id, { payment_status: 'paid', advance: order.amount })}
+              className="text-xs px-3 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-md font-medium"
+            >
+              Mark Paid
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
