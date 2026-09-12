@@ -247,7 +247,7 @@ export default function AddCustomer() {
             .update(orderPayload)
             .eq('id', orderId);
           if (oErr) throw oErr;
-                } else if (billNo || amount) {
+                } else if (billNo || amount || billPhotoUrl) {
           // No existing order — create one
           const { error: oErr } = await supabase.from('orders').insert([{
             customer_id: id,
@@ -285,7 +285,7 @@ export default function AddCustomer() {
           await supabase.from('measurements').insert(measurements);
         }
 
-        if (billNo || amount) {
+        if (billNo || amount || billPhotoUrl) {
           await addOrder({
             customer_id: customer.id,
             bill_no: billNo,
