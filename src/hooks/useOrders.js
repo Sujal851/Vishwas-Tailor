@@ -46,6 +46,17 @@ export function useOrders(customerId = null, { skip = false } = {}) {
   }
 
   async function deleteOrder(id) {
+    const { data: orderRow } = await supabase
+      .from('orders')
+      .select('bill_photo_url')
+      .eq('id', id)
+      .single();
+
+    if (orderRow?.bill_photo_url) {
+      const filePath = orderRow.bill_photo_url.split('/bill-photos/').pop();
+      if (filePath) await supabase.storage.from('bill-photos').remove([filePath]);
+    }
+
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (error) { toast.error('Failed to delete order'); return; }
     toast.success('Order deleted');

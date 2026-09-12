@@ -38,6 +38,21 @@ export function useCustomers() {
   }
 
   async function deleteCustomer(id) {
+    // Fetch bill photo URLs before deleting the orders, so we can clean up Storage too
+    const { data: customerOrders } = await supabase
+      .from('orders')
+      .select('bill_photo_url')
+      .eq('customer_id', id);
+
+    const filePaths = (customerOrders || [])
+      .filter(o => o.bill_photo_url)
+      .map(o => o.bill_photo_url.split('/bill-photos/').pop())
+      .filter(Boolean);
+
+    if (filePaths.length > 0) {
+      await supabase.storage.from('bill-photos').remove(filePaths);
+    }
+
     // Delete child rows first (orders, measurements), then the customer
     await supabase.from('orders').delete().eq('customer_id', id);
     await supabase.from('measurements').delete().eq('customer_id', id);
