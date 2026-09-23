@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { downloadImage, billPhotoFilename } from '../utils/downloadImage';
 
 // Keys to display with friendly labels for trouser
 const TROUSER_LABELS = {
@@ -25,9 +26,20 @@ function formatVal(v) {
   return v || '—';
 }
 
-function BillPhotoViewer({ url }) {
+function BillPhotoViewer({ url, billNo }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload(e) {
+    e.stopPropagation(); // don't also trigger the image's onClick (open in new tab)
+    if (downloading) return;
+    setDownloading(true);
+    const ok = await downloadImage(url, billPhotoFilename(url, billNo));
+    setDownloading(false);
+    if (ok) toast.success('Photo downloaded');
+    else toast.error('Download failed');
+  }
 
   if (failed) {
     return (
@@ -38,20 +50,35 @@ function BillPhotoViewer({ url }) {
   }
 
   return (
-    <div className="relative w-full max-w-xs">
-      {!loaded && (
-        <div className="w-full h-40 bg-gray-100 rounded-lg animate-pulse flex items-center justify-center text-xs text-gray-400">
-          Loading photo...
-        </div>
+    <div className="w-full max-w-xs space-y-2">
+      <div className="relative w-full">
+        {!loaded && (
+          <div className="w-full h-40 bg-gray-100 rounded-lg animate-pulse flex items-center justify-center text-xs text-gray-400">
+            Loading photo...
+          </div>
+        )}
+        <img
+          src={url}
+          alt="Bill"
+          className={`w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition ${loaded ? 'block' : 'hidden'}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          onClick={() => window.open(url, '_blank')}
+        />
+      </div>
+
+      {/* Download the bill photo to this device */}
+      {loaded && (
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs text-gray-700 hover:border-gray-400 disabled:opacity-50 flex items-center justify-center gap-1"
+          title="Download photo to this device"
+        >
+          ⬇ {downloading ? 'Downloading...' : 'Download'}
+        </button>
       )}
-      <img
-        src={url}
-        alt="Bill"
-        className={`w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition ${loaded ? 'block' : 'hidden'}`}
-        onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
-        onClick={() => window.open(url, '_blank')}
-      />
     </div>
   );
 }
@@ -140,7 +167,7 @@ export default function CustomerDetail() {
             {!latestOrder ? (
               <p className="text-sm text-gray-400 italic">No bill yet for this customer</p>
             ) : latestOrder.bill_photo_url ? (
-              <BillPhotoViewer url={latestOrder.bill_photo_url} />
+              <BillPhotoViewer url={latestOrder.bill_photo_url} billNo={latestOrder.bill_no} />
             ) : (
               <p className="text-sm text-gray-400 italic">No bill photo uploaded</p>
             )}

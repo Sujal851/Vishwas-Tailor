@@ -350,6 +350,7 @@ export default function App() {
 import { useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { downloadImage, billPhotoFilename } from '../utils/downloadImage';
 
 const BUCKET = 'bill-photos';
 
@@ -357,6 +358,7 @@ export default function BillPhotoUpload({ value, onChange, orderId }) {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   async function uploadFile(file) {
     if (!file) return;
@@ -399,24 +401,46 @@ export default function BillPhotoUpload({ value, onChange, orderId }) {
     onChange('');
   }
 
+  async function handleDownload() {
+    if (!value || downloading) return;
+    setDownloading(true);
+    const ok = await downloadImage(value, billPhotoFilename(value, orderId));
+    setDownloading(false);
+    if (ok) toast.success('Photo downloaded');
+    else toast.error('Download failed');
+  }
+
   return (
     <div className="space-y-2">
       <label className="text-xs text-gray-500 mb-1 block">Bill Photo</label>
 
       {value ? (
-        <div className="relative w-40">
-          <img
-            src={value}
-            alt="Bill"
-            className="w-40 h-40 object-cover rounded border border-gray-300"
-          />
+        <div className="w-40 space-y-2">
+          <div className="relative">
+            <img
+              src={value}
+              alt="Bill"
+              className="w-40 h-40 object-cover rounded border border-gray-300"
+            />
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center shadow"
+              title="Remove photo"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Download the captured/uploaded photo to the device */}
           <button
             type="button"
-            onClick={handleRemove}
-            className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center shadow"
-            title="Remove photo"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs text-gray-700 hover:border-gray-400 disabled:opacity-50 flex items-center justify-center gap-1"
+            title="Download photo to this device"
           >
-            ✕
+            ⬇ {downloading ? 'Downloading...' : 'Download'}
           </button>
         </div>
       ) : (
@@ -838,6 +862,21 @@ export function useCustomers() {
   }
 
   async function deleteCustomer(id) {
+    // Fetch bill photo URLs before deleting the orders, so we can clean up Storage too
+    const { data: customerOrders } = await supabase
+      .from('orders')
+      .select('bill_photo_url')
+      .eq('customer_id', id);
+
+    const filePaths = (customerOrders || [])
+      .filter(o => o.bill_photo_url)
+      .map(o => o.bill_photo_url.split('/bill-photos/').pop())
+      .filter(Boolean);
+
+    if (filePaths.length > 0) {
+      await supabase.storage.from('bill-photos').remove(filePaths);
+    }
+
     // Delete child rows first (orders, measurements), then the customer
     await supabase.from('orders').delete().eq('customer_id', id);
     await supabase.from('measurements').delete().eq('customer_id', id);
@@ -909,6 +948,17 @@ export function useOrders(customerId = null, { skip = false } = {}) {
   }
 
   async function deleteOrder(id) {
+    const { data: orderRow } = await supabase
+      .from('orders')
+      .select('bill_photo_url')
+      .eq('id', id)
+      .single();
+
+    if (orderRow?.bill_photo_url) {
+      const filePath = orderRow.bill_photo_url.split('/bill-photos/').pop();
+      if (filePath) await supabase.storage.from('bill-photos').remove([filePath]);
+    }
+
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (error) { toast.error('Failed to delete order'); return; }
     toast.success('Order deleted');
@@ -1932,6 +1982,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { downloadImage, billPhotoFilename } from '../utils/downloadImage';
 
 // Keys to display with friendly labels for trouser
 const TROUSER_LABELS = {
@@ -1954,9 +2005,20 @@ function formatVal(v) {
   return v || '—';
 }
 
-function BillPhotoViewer({ url }) {
+function BillPhotoViewer({ url, billNo }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload(e) {
+    e.stopPropagation(); // don't also trigger the image's onClick (open in new tab)
+    if (downloading) return;
+    setDownloading(true);
+    const ok = await downloadImage(url, billPhotoFilename(url, billNo));
+    setDownloading(false);
+    if (ok) toast.success('Photo downloaded');
+    else toast.error('Download failed');
+  }
 
   if (failed) {
     return (
@@ -1967,20 +2029,35 @@ function BillPhotoViewer({ url }) {
   }
 
   return (
-    <div className="relative w-full max-w-xs">
-      {!loaded && (
-        <div className="w-full h-40 bg-gray-100 rounded-lg animate-pulse flex items-center justify-center text-xs text-gray-400">
-          Loading photo...
-        </div>
+    <div className="w-full max-w-xs space-y-2">
+      <div className="relative w-full">
+        {!loaded && (
+          <div className="w-full h-40 bg-gray-100 rounded-lg animate-pulse flex items-center justify-center text-xs text-gray-400">
+            Loading photo...
+          </div>
+        )}
+        <img
+          src={url}
+          alt="Bill"
+          className={`w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition ${loaded ? 'block' : 'hidden'}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          onClick={() => window.open(url, '_blank')}
+        />
+      </div>
+
+      {/* Download the bill photo to this device */}
+      {loaded && (
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs text-gray-700 hover:border-gray-400 disabled:opacity-50 flex items-center justify-center gap-1"
+          title="Download photo to this device"
+        >
+          ⬇ {downloading ? 'Downloading...' : 'Download'}
+        </button>
       )}
-      <img
-        src={url}
-        alt="Bill"
-        className={`w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition ${loaded ? 'block' : 'hidden'}`}
-        onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
-        onClick={() => window.open(url, '_blank')}
-      />
     </div>
   );
 }
@@ -2069,7 +2146,7 @@ export default function CustomerDetail() {
             {!latestOrder ? (
               <p className="text-sm text-gray-400 italic">No bill yet for this customer</p>
             ) : latestOrder.bill_photo_url ? (
-              <BillPhotoViewer url={latestOrder.bill_photo_url} />
+              <BillPhotoViewer url={latestOrder.bill_photo_url} billNo={latestOrder.bill_no} />
             ) : (
               <p className="text-sm text-gray-400 italic">No bill photo uploaded</p>
             )}
@@ -2731,6 +2808,55 @@ export default function Login() {
 ===== FILE: src\pages\SearchFilter.jsx =====
 
 
+
+===== FILE: src\utils\downloadImage.js =====
+
+// src/utils/downloadImage.js
+//
+// Securely downloads an image URL to the user's device.
+// Uses fetch -> blob -> temporary <a download> instead of a raw
+// `<a href="...">` link, because:
+//  - it works consistently across mobile browsers (a plain href to an
+//    image often just opens/previews it instead of saving it)
+//  - it lets us force a clean, predictable filename
+//  - the blob URL is local/object-scoped and is revoked immediately
+//    after use, so nothing lingers in memory
+//
+// Returns true on success, false on failure (caller decides how to notify).
+export async function downloadImage(url, filename) {
+  if (!url) return false;
+
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename || 'bill-photo.jpg';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Free the object URL once the browser has had a chance to start the download
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+    return true;
+  } catch (err) {
+    console.error('Photo download error:', err);
+    return false;
+  }
+}
+
+// Builds a friendly filename from an order's bill number / id and the
+// original extension in the stored URL, e.g. "bill-1042.jpg"
+export function billPhotoFilename(url, billNo) {
+  const ext = (url?.split('.').pop() || 'jpg').split('?')[0].slice(0, 5);
+  const base = billNo ? `bill-${billNo}` : 'bill-photo';
+  return `${base}.${ext}`;
+}
 
 ===== FILE: vercel.json =====
 

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { downloadImage, billPhotoFilename } from '../utils/downloadImage';
 
 const BUCKET = 'bill-photos';
 
@@ -8,6 +9,7 @@ export default function BillPhotoUpload({ value, onChange, orderId }) {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   async function uploadFile(file) {
     if (!file) return;
@@ -50,24 +52,46 @@ export default function BillPhotoUpload({ value, onChange, orderId }) {
     onChange('');
   }
 
+  async function handleDownload() {
+    if (!value || downloading) return;
+    setDownloading(true);
+    const ok = await downloadImage(value, billPhotoFilename(value, orderId));
+    setDownloading(false);
+    if (ok) toast.success('Photo downloaded');
+    else toast.error('Download failed');
+  }
+
   return (
     <div className="space-y-2">
       <label className="text-xs text-gray-500 mb-1 block">Bill Photo</label>
 
       {value ? (
-        <div className="relative w-40">
-          <img
-            src={value}
-            alt="Bill"
-            className="w-40 h-40 object-cover rounded border border-gray-300"
-          />
+        <div className="w-40 space-y-2">
+          <div className="relative">
+            <img
+              src={value}
+              alt="Bill"
+              className="w-40 h-40 object-cover rounded border border-gray-300"
+            />
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center shadow"
+              title="Remove photo"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Download the captured/uploaded photo to the device */}
           <button
             type="button"
-            onClick={handleRemove}
-            className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center shadow"
-            title="Remove photo"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs text-gray-700 hover:border-gray-400 disabled:opacity-50 flex items-center justify-center gap-1"
+            title="Download photo to this device"
           >
-            ✕
+            ⬇ {downloading ? 'Downloading...' : 'Download'}
           </button>
         </div>
       ) : (
